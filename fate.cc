@@ -30,18 +30,16 @@
 #include "pack.h"
 #include "common.h"
 
-#define MYCALL "AB1HL"
-#define MYGRID "FN42"
+std::string mycall;
+std::string mygrid;
 
 void
 usage()
 {
-  fprintf(stderr, "Usage: fate -card card chan [-out card chan]\n");
+  fprintf(stderr, "Usage: fate -card CARD CHAN [-c MYCALL MYGRID -out CARD CHAN]\n");
   fprintf(stderr, "       fate -cardfile xxx.wav\n");
   fprintf(stderr, "       fate -levels card channel\n");
   fprintf(stderr, "       fate -list\n");
-  fprintf(stderr, "       fate -opt\n");
-  fprintf(stderr, "       fate -bench\n");
   fprintf(stderr, "       fate ... -f8101 /dev/xxx\n");
   fprintf(stderr, "       fate ... -dtr /dev/xxx\n");
   exit(1);
@@ -514,6 +512,7 @@ kb_loop()
       // control-A <letter>
       // chooses a signal to receive.
 
+      if(isupper(c)) c = tolower(c);
       int i = c - 'a';
       lines_mu.lock();
       if(i >= 0 && i < (int) lines.size()){
@@ -706,8 +705,8 @@ send_over(SoundOut *sout, int &tx_i)
   int finish_up = 0;
   int sent_empty = 0;
 
-  if(rx_call.size() > 0){
-    std::vector<double> samples = pack_directed(MYCALL, rx_call, 31, 0, 1, sout->rate(), tx_hz);
+  if(rx_call.size() > 0 && mycall.size() > 0){
+    std::vector<double> samples = pack_directed(mycall, rx_call, 31, 0, 1, sout->rate(), tx_hz);
     transmit(sout, samples, "START");
   }
 
@@ -823,17 +822,17 @@ tx_loop(SoundOut *sout)
       tx_buf_mu.unlock();
 
       if(do_cq){
-        std::vector<double> samples = pack_cq(MYCALL, MYGRID, sout->rate(), tx_hz);
+        std::vector<double> samples = pack_cq(mycall, mygrid, sout->rate(), tx_hz);
         transmit(sout, samples, "CQ CQ CQ");
       } else if(do_reply){
         if(rx_call.size() > 0){
           // 19 is HW CPY?
-          std::vector<double> samples = pack_directed(MYCALL, rx_call, 19, 0, 3, sout->rate(), tx_hz);
+          std::vector<double> samples = pack_directed(mycall, rx_call, 19, 0, 3, sout->rate(), tx_hz);
           transmit(sout, samples, "HW CPY?");
         }
       } else if(do_snr){
         if(rx_call.size() > 0){
-          std::vector<double> samples = pack_directed(MYCALL, rx_call, 25, rx_snr + 31, 3, sout->rate(), tx_hz);
+          std::vector<double> samples = pack_directed(mycall, rx_call, 25, rx_snr + 31, 3, sout->rate(), tx_hz);
           transmit(sout, samples, "SNR");
         }
       } else if(do_text){
@@ -976,6 +975,12 @@ main(int argc, char *argv[])
       ai++;
       inchan = argv[ai];
       ai++;
+    } else if(strcmp(argv[ai], "-c") == 0 && ai+2 < argc){
+      ai++;
+      mycall = argv[ai];
+      ai++;
+      mygrid = argv[ai];
+      ai++;
     } else if(strcmp(argv[ai], "-cardfile") == 0 && ai+1 < argc){
       ai++;
       cardfile = argv[ai];
@@ -1011,6 +1016,8 @@ main(int argc, char *argv[])
     SoundIn *sin = SoundIn::open(incard, inchan, 6000);
     SoundOut *sout = 0;
     if(outcard != NULL){
+      fprintf(stderr, "warning: -out but no -c CALL GRID\n");
+      sleep(1);
       sout = SoundOut::open(outcard, outchan, 6000);
     }
     screen_main(sin, sout);
