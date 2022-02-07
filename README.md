@@ -3,7 +3,7 @@ JS8 software
 
 This is a JS8 program suitable for running in a text-only terminal
 window on Linux, MacOS, or FreeBSD. It's pretty minimal compared to
-JS8Call, implementing only what's needed to exchange text.
+JS8Call, implementing only what's needed for a QSO.
 
 It requires fftw3, sndfile, and portaudio libraries to already
 be installed. To compile:
@@ -15,11 +15,11 @@ be installed. To compile:
 To run:
 
 ```
-  ./fate -card CARD CHAN -out CARD CHAN
+  ./fate -c MYCALL MYGRID -card CARD CHAN -out CARD CHAN
 ```
 
 To find the numbers of sound cards, run fate -list. If you don't want
-to transmit, omit the -out. If you need to toggle DTR on a serial line
+to transmit, omit the -c and -out. If you need to toggle DTR on a serial line
 to transmit, try the -dtr argument.
 
 You should see something like this in your terminal window:
@@ -63,5 +63,9 @@ selected call-sign. Type control-G to send an SNR report to the
 selected call-sign. Type control-C or control-X to quit. The file
 qso-trace.txt will contain the text of signals you have selected with
 control-A.
+
+Missing: automatic choice of a transmit audio frequency that's not in
+use; decoding and transmitting compound call-signs; speeds other than
+Normal; indication of input audio level.
 
 Robert Morris, AB1HL
