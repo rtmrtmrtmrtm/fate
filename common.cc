@@ -1,3 +1,4 @@
+#include "snd.h"
 #include <math.h>
 #include <complex>
 #include <string.h>
@@ -20,7 +21,6 @@
 
 #include "defs.h"
 #include "js8.h"
-#include "snd.h"
 #include "util.h"
 #include "pack.h"
 #include "common.h"

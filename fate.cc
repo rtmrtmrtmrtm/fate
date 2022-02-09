@@ -3,6 +3,8 @@
 //
 // Robert Morris, AB1HL
 //
+
+#include "snd.h"
 #include <math.h>
 #include <complex>
 #include <string.h>
@@ -24,7 +26,6 @@
 #include <time.h>
 
 #include "defs.h"
-#include "snd.h"
 #include "util.h"
 #include "pack.h"
 #include "js8.h"
