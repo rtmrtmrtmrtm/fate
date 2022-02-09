@@ -1,5 +1,5 @@
 //
-// unpack JS8 messages
+// unpack 87-bit JS8 messages
 //
 // Robert Morris, AB1HL
 //

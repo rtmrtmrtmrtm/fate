@@ -20,7 +20,8 @@ To run:
 
 To find the numbers of sound cards, run fate -list. If you don't want
 to transmit, omit the -c and -out. If you need to toggle DTR on a serial line
-to transmit, try the -dtr argument.
+to transmit, try the -dtr argument. You can omit the -c arguments
+if you set the MYCALL and MYGRID environment variables.
 
 You should see something like this in your terminal window:
 
@@ -64,8 +65,7 @@ selected call-sign. Type control-C or control-X to quit. The file
 qso-trace.txt will contain the text of signals you have selected with
 control-A.
 
-Missing: automatic choice of a transmit audio frequency that's not in
-use; decoding and transmitting compound call-signs; speeds other than
-Normal; indication of input audio level.
+Missing: decoding and transmitting compound call-signs; speeds other
+than Normal; indication of input audio level.
 
 Robert Morris, AB1HL
