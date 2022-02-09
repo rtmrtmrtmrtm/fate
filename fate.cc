@@ -28,6 +28,7 @@
 #include "snd.h"
 #include "util.h"
 #include "pack.h"
+#include "js8.h"
 #include "common.h"
 
 std::string mycall;
@@ -396,7 +397,7 @@ ptt_rx()
 // the signal we're talking to.
 //
 std::string rx_call;
-double rx_hz = 1400;
+double rx_hz = 0;
 double rx_snr = 0;
 std::mutex rx_buf_mu;
 FILE *qso_fp = 0;
@@ -405,10 +406,35 @@ std::string rx_buf;
 // buffer of characters I want to transmit.
 std::mutex tx_buf_mu;
 std::string tx_buf;
-double tx_hz = 1400;
+double tx_hz = -1;
 
 volatile int transmitting = 0;
 std::string display_status;
+
+//
+// try to find a transmit audio frequency that's not in use.
+// 1000 .. 2500 hz
+//
+double
+choose_tx_hz()
+{
+  for(int tries = 0; tries < 20; tries++){
+    int slot = random() % (1500 / 50);
+    double hz = 1000 + slot * 50;
+    bool ok = true;
+    lines_mu.lock();
+    for(int i = 0; i < lines.size(); i++){
+      if(lines[i].hz_ + 50 >= hz && lines[i].hz_ <= hz + 50)
+        ok = false;
+    }
+    lines_mu.unlock();
+    if(ok)
+      return hz;
+  }
+
+  // give up
+  return 1000 + (random() % 1450);
+}
 
 void
 draw_screen()
@@ -422,14 +448,10 @@ draw_screen()
   printf("\033[2J"); // clear
 
   if(transmitting){
-    printf("TX ");
+    printf("TX HZ=%.0f ", tx_hz);
   } else {
     printf("RX ");
   }
-  if(rx_hz > 0){
-    printf("%.0f ", rx_hz);
-  }
-  printf("%s ", rx_call.c_str());
   printf("%s ", display_status.c_str());
   printf("\n");
   
@@ -446,8 +468,7 @@ draw_screen()
     
     std::string lt = simplify(ll.text_);
     
-    int j0 = lt.size() - lay.cols + 12; // leave room for hz, q
-    // int j0 = lt.size() - lay.cols + 26; // leave room for hz, snr
+    int j0 = lt.size() - lay.cols + 12; // leave room for hz
     if(j0 < 0)
       j0 = 0;
     for(int j = j0; j < (int) lt.size(); j++){
@@ -462,7 +483,17 @@ draw_screen()
   }
 
   // --- first divider.
-  for(int i = 0; i < lay.cols-1; i++)
+  char info[64];
+  if(rx_call != ""){
+    sprintf(info, "---- RX %s HZ=%.0f SNR=%.0f ",
+            rx_call.c_str(),
+            rx_hz,
+            rx_snr);
+  } else {
+    sprintf(info, "---- RX - HZ= SNR= ");
+  }
+  printf("%s", info);
+  for(int i = 0; i < lay.cols - (int) strlen(info) - 1; i++)
     printf("-");
 
   // the selected signal.
@@ -476,9 +507,11 @@ draw_screen()
 
 
   // --- second divider.
-  char info[64];
-  sprintf(info, "---- %4.0f %2.0f %s ",
-          rx_hz, rx_snr, transmitting ? "TX" : "RX");
+  if(tx_hz > 0){
+    sprintf(info, "---- TX HZ=%.0f ", tx_hz);
+  } else {
+    sprintf(info, "---- TX HZ= ");
+  }
   printf("%s", info);
   for(int i = 0; i < lay.cols - (int) strlen(info) - 1; i++)
     printf("-");
@@ -570,7 +603,7 @@ kb_loop()
 
 int
 fate_cb(int *a87, double hz0, double hz1, double off,
-    const char *comment, double snr)
+        const char *comment, double snr, int pass, int correct_bits)
 {
   std::string other_call;
   
@@ -668,6 +701,9 @@ transmit(SoundOut *sout, std::vector<double> samples, const std::string status)
 {
   if(sout == 0)
     return;
+
+  if(tx_hz <= 0)
+    tx_hz = choose_tx_hz();
 
   if(f8101 >= 0)
     f8101_tx();
@@ -823,9 +859,11 @@ tx_loop(SoundOut *sout)
 
       if(do_cq){
         std::vector<double> samples = pack_cq(mycall, mygrid, sout->rate(), tx_hz);
+        tx_hz = choose_tx_hz(); // choose a new frequency
         transmit(sout, samples, "CQ CQ CQ");
       } else if(do_reply){
         if(rx_call.size() > 0){
+          tx_hz = choose_tx_hz(); // choose a new frequency
           // 19 is HW CPY?
           std::vector<double> samples = pack_directed(mycall, rx_call, 19, 0, 3, sout->rate(), tx_hz);
           transmit(sout, samples, "HW CPY?");
@@ -954,6 +992,11 @@ main(int argc, char *argv[])
   if(argc < 2)
     usage();
 
+  if(getenv("MYCALL"))
+    mycall = std::string(getenv("MYCALL"));
+  if(getenv("MYGRID"))
+    mygrid = std::string(getenv("MYGRID"));
+
   int ai = 1;
   while(ai < argc){
     if(strcmp(argv[ai], "-list") == 0){
@@ -1016,8 +1059,10 @@ main(int argc, char *argv[])
     SoundIn *sin = SoundIn::open(incard, inchan, 6000);
     SoundOut *sout = 0;
     if(outcard != NULL){
-      fprintf(stderr, "warning: -out but no -c CALL GRID\n");
-      sleep(1);
+      if(mycall.size() == 0){
+        fprintf(stderr, "warning: -out but no -c CALL GRID\n");
+        sleep(2);
+      }
       sout = SoundOut::open(outcard, outchan, 6000);
     }
     screen_main(sin, sout);
