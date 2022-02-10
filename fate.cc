@@ -415,7 +415,7 @@ std::string display_status;
 // try to find a transmit audio frequency that's not in use.
 // 1000 .. 2500 hz
 //
-double
+void
 choose_tx_hz()
 {
   for(int tries = 0; tries < 20; tries++){
@@ -428,12 +428,14 @@ choose_tx_hz()
         ok = false;
     }
     lines_mu.unlock();
-    if(ok)
-      return hz;
+    if(ok){
+      tx_hz = hz;
+      return;
+    }
   }
 
   // give up
-  return 1000 + (random() % 1450);
+  tx_hz = 1000 + (random() % 1450);
 }
 
 void
@@ -702,9 +704,6 @@ transmit(SoundOut *sout, std::vector<double> samples, const std::string status)
   if(sout == 0)
     return;
 
-  if(tx_hz <= 0)
-    tx_hz = choose_tx_hz();
-
   if(f8101 >= 0)
     f8101_tx();
   if(dtr >= 0)
@@ -740,6 +739,9 @@ send_over(SoundOut *sout, int &tx_i)
 {
   int finish_up = 0;
   int sent_empty = 0;
+
+  if(tx_hz <= 0)
+    choose_tx_hz();
 
   if(rx_call.size() > 0 && mycall.size() > 0){
     std::vector<double> samples = pack_directed(mycall, rx_call, 31, 0, 1, sout->rate(), tx_hz);
@@ -823,7 +825,7 @@ tx_loop(SoundOut *sout)
 
     if(tune){
       // a one-second tone 
-      std::vector<double> v = costone(tx_hz, sout->rate(), sout->rate());
+      std::vector<double> v = costone(1500, sout->rate(), sout->rate());
       transmit(sout, v, "tone");
     }
 
@@ -858,17 +860,20 @@ tx_loop(SoundOut *sout)
       tx_buf_mu.unlock();
 
       if(do_cq){
+        choose_tx_hz();
         std::vector<double> samples = pack_cq(mycall, mygrid, sout->rate(), tx_hz);
-        tx_hz = choose_tx_hz(); // choose a new frequency
         transmit(sout, samples, "CQ CQ CQ");
       } else if(do_reply){
+        if(tx_hz < 0)
+          choose_tx_hz();
         if(rx_call.size() > 0){
-          tx_hz = choose_tx_hz(); // choose a new frequency
           // 19 is HW CPY?
           std::vector<double> samples = pack_directed(mycall, rx_call, 19, 0, 3, sout->rate(), tx_hz);
           transmit(sout, samples, "HW CPY?");
         }
       } else if(do_snr){
+        if(tx_hz < 0)
+          choose_tx_hz();
         if(rx_call.size() > 0){
           std::vector<double> samples = pack_directed(mycall, rx_call, 25, rx_snr + 31, 3, sout->rate(), tx_hz);
           transmit(sout, samples, "SNR");
@@ -996,6 +1001,8 @@ main(int argc, char *argv[])
     mycall = std::string(getenv("MYCALL"));
   if(getenv("MYGRID"))
     mygrid = std::string(getenv("MYGRID"));
+
+  srandom(time((time_t*)0));
 
   int ai = 1;
   while(ai < argc){
